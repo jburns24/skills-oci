@@ -1,4 +1,4 @@
-module github.com/salaboy/skills-cli
+module github.com/salaboy/skills-oci
 
 go 1.24.4
 

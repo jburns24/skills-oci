@@ -9,10 +9,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/salaboy/skills-cli/pkg/oci"
-	"github.com/salaboy/skills-cli/pkg/skill"
-	"github.com/salaboy/skills-cli/pkg/tui"
-	"github.com/salaboy/skills-cli/pkg/tui/components"
+	"github.com/salaboy/skills-oci/pkg/oci"
+	"github.com/salaboy/skills-oci/pkg/skill"
+	"github.com/salaboy/skills-oci/pkg/tui"
+	"github.com/salaboy/skills-oci/pkg/tui/components"
 )
 
 type phase int
@@ -37,13 +37,14 @@ type Model struct {
 	ref        string
 	outputDir  string
 	projectDir string
+	skillsDir  string
 	plainHTTP  bool
 	result     *oci.PullResult
 	err        error
 }
 
 // NewModel creates a new add TUI model.
-func NewModel(ref, outputDir, projectDir string, plainHTTP bool) Model {
+func NewModel(ref, outputDir, projectDir, skillsDir string, plainHTTP bool) Model {
 	if projectDir == "" {
 		projectDir = "."
 	}
@@ -53,6 +54,7 @@ func NewModel(ref, outputDir, projectDir string, plainHTTP bool) Model {
 		ref:        ref,
 		outputDir:  outputDir,
 		projectDir: projectDir,
+		skillsDir:  skillsDir,
 		plainHTTP:  plainHTTP,
 	}
 }
@@ -95,7 +97,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString("\n")
-	b.WriteString(tui.TitleStyle.Render("  Skills CLI — Add"))
+	b.WriteString(tui.TitleStyle.Render("  Skills OCI — Add"))
 	b.WriteString("\n\n")
 
 	phases := []struct {
@@ -156,12 +158,12 @@ func (m Model) startPull() tea.Cmd {
 		}
 
 		// Update skills.json
-		if err := updateManifest(m.projectDir, result); err != nil {
+		if err := updateManifest(m.projectDir, m.skillsDir, result); err != nil {
 			return pullErrMsg{err: fmt.Errorf("updating skills.json: %w", err)}
 		}
 
 		// Update skills.lock.json
-		if err := updateLockFile(m.projectDir, result); err != nil {
+		if err := updateLockFile(m.projectDir, m.skillsDir, result); err != nil {
 			return pullErrMsg{err: fmt.Errorf("updating skills.lock.json: %w", err)}
 		}
 
@@ -169,7 +171,7 @@ func (m Model) startPull() tea.Cmd {
 	}
 }
 
-func updateManifest(projectDir string, result *oci.PullResult) error {
+func updateManifest(projectDir, skillsDir string, result *oci.PullResult) error {
 	m, err := skill.LoadManifest(projectDir)
 	if err != nil {
 		return err
@@ -178,13 +180,13 @@ func updateManifest(projectDir string, result *oci.PullResult) error {
 	return skill.SaveManifest(projectDir, m)
 }
 
-func updateLockFile(projectDir string, result *oci.PullResult) error {
+func updateLockFile(projectDir, skillsDir string, result *oci.PullResult) error {
 	l, err := skill.LoadLock(projectDir)
 	if err != nil {
 		return err
 	}
 
-	extractPath := filepath.Join(".agents", "skills", result.Name)
+	extractPath := filepath.Join(skillsDir, result.Name)
 	entry := skill.LockedSkill{
 		Name: result.Name,
 		Path: extractPath,

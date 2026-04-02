@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/salaboy/skills-cli/cmd"
+	"github.com/salaboy/skills-oci/cmd"
 )
 
 func main() {

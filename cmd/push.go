@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/salaboy/skills-cli/pkg/oci"
-	"github.com/salaboy/skills-cli/pkg/tui/push"
+	"github.com/salaboy/skills-oci/pkg/oci"
+	"github.com/salaboy/skills-oci/pkg/tui/push"
 	"github.com/spf13/cobra"
 )
 
@@ -16,10 +16,10 @@ func newPushCmd() *cobra.Command {
 		Short: "Package and push a skill to an OCI registry",
 		Long:  "Validates a skill directory, packages it as an OCI artifact, and pushes it to a remote container registry.",
 		Example: `  # Push a skill to GHCR
-  skills push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0
+  skills-oci push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0
 
   # Push to a local registry (plain HTTP)
-  skills push --ref localhost:5000/my-skill --path ./my-skill --tag 1.0.0 --plain-http`,
+  skills-oci push --ref localhost:5000/my-skill --path ./my-skill --tag 1.0.0 --plain-http`,
 		RunE: runPush,
 	}
 

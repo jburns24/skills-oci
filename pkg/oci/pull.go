@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/salaboy/skills-cli/pkg/skill"
+	"github.com/salaboy/skills-oci/pkg/skill"
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content/memory"
 	"oras.land/oras-go/v2/registry/remote"
@@ -21,7 +21,7 @@ import (
 // PullOptions configures a pull operation.
 type PullOptions struct {
 	Reference string // Full OCI reference, e.g., "ghcr.io/org/skills/my-skill:1.0.0"
-	OutputDir string // Directory to extract skill into (default: .agents/skills)
+	OutputDir string // Directory to extract skill into
 	PlainHTTP bool
 
 	OnStatus func(phase string)

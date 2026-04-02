@@ -7,10 +7,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/salaboy/skills-cli/pkg/oci"
-	"github.com/salaboy/skills-cli/pkg/skill"
-	"github.com/salaboy/skills-cli/pkg/tui"
-	"github.com/salaboy/skills-cli/pkg/tui/components"
+	"github.com/salaboy/skills-oci/pkg/oci"
+	"github.com/salaboy/skills-oci/pkg/skill"
+	"github.com/salaboy/skills-oci/pkg/tui"
+	"github.com/salaboy/skills-oci/pkg/tui/components"
 )
 
 type phase int
@@ -100,7 +100,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	b.WriteString("\n")
-	b.WriteString(tui.TitleStyle.Render("  Skills CLI — Push"))
+	b.WriteString(tui.TitleStyle.Render("  Skills OCI — Push"))
 	b.WriteString("\n\n")
 
 	phases := []struct {

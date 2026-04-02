@@ -7,9 +7,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/salaboy/skills-cli/pkg/oci"
-	"github.com/salaboy/skills-cli/pkg/skill"
-	"github.com/salaboy/skills-cli/pkg/tui/add"
+	"github.com/salaboy/skills-oci/pkg/oci"
+	"github.com/salaboy/skills-oci/pkg/skill"
+	"github.com/salaboy/skills-oci/pkg/tui/add"
 	"github.com/spf13/cobra"
 )
 
@@ -17,20 +17,23 @@ func newAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Install a skill from an OCI registry",
-		Long:  "Pulls a skill artifact from a remote container registry, extracts it to .agents/skills, and updates skills.json and skills.lock.json.",
+		Long:  "Pulls a skill artifact from a remote container registry, extracts it to the skills directory, and updates skills.json and skills.lock.json.",
 		Example: `  # Install a skill from GHCR
-  skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0
+  skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0
 
   # Install from a local registry
-  skills add --ref localhost:5000/my-skill:1.0.0 --plain-http
+  skills-oci add --ref localhost:5000/my-skill:1.0.0 --plain-http
+
+  # Install to .claude/skills instead of .agents/skills
+  skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --claude
 
   # Install to a custom directory
-  skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --output ./custom/path`,
+  skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --output ./custom/path`,
 		RunE: runAdd,
 	}
 
 	cmd.Flags().String("ref", "", "Full OCI reference (e.g., ghcr.io/org/skills/my-skill:1.0.0)")
-	cmd.Flags().String("output", "", "Output directory for skill extraction (default: .agents/skills)")
+	cmd.Flags().String("output", "", "Output directory for skill extraction (overrides default)")
 	cmd.Flags().String("project-dir", ".", "Project directory containing skills.json and skills.lock.json")
 
 	_ = cmd.MarkFlagRequired("ref")
@@ -44,12 +47,18 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	projectDir, _ := cmd.Flags().GetString("project-dir")
 	plain, _ := cmd.Flags().GetBool("plain")
 	plainHTTP, _ := cmd.Flags().GetBool("plain-http")
+	skillsDir := resolveSkillsDir(cmd)
 
-	if plain {
-		return runAddPlain(ref, output, projectDir, plainHTTP)
+	// If no explicit output, use the resolved skills dir relative to project dir
+	if output == "" {
+		output = filepath.Join(projectDir, skillsDir)
 	}
 
-	m := add.NewModel(ref, output, projectDir, plainHTTP)
+	if plain {
+		return runAddPlain(ref, output, projectDir, skillsDir, plainHTTP)
+	}
+
+	m := add.NewModel(ref, output, projectDir, skillsDir, plainHTTP)
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
@@ -65,7 +74,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runAddPlain(ref, output, projectDir string, plainHTTP bool) error {
+func runAddPlain(ref, output, projectDir, skillsDir string, plainHTTP bool) error {
 	result, err := oci.Pull(context.Background(), oci.PullOptions{
 		Reference: ref,
 		OutputDir: output,
@@ -80,13 +89,13 @@ func runAddPlain(ref, output, projectDir string, plainHTTP bool) error {
 
 	// Update skills.json
 	fmt.Println("  Updating skills.json")
-	if err := updateManifest(projectDir, result); err != nil {
+	if err := updateManifest(projectDir, skillsDir, result); err != nil {
 		return fmt.Errorf("updating skills.json: %w", err)
 	}
 
 	// Update skills.lock.json
 	fmt.Println("  Updating skills.lock.json")
-	if err := updateLockFile(projectDir, result); err != nil {
+	if err := updateLockFile(projectDir, skillsDir, result); err != nil {
 		return fmt.Errorf("updating skills.lock.json: %w", err)
 	}
 
@@ -99,7 +108,7 @@ func runAddPlain(ref, output, projectDir string, plainHTTP bool) error {
 }
 
 // updateManifest loads skills.json, adds/updates the skill entry, and saves it.
-func updateManifest(projectDir string, result *oci.PullResult) error {
+func updateManifest(projectDir, skillsDir string, result *oci.PullResult) error {
 	m, err := skill.LoadManifest(projectDir)
 	if err != nil {
 		return err
@@ -111,14 +120,13 @@ func updateManifest(projectDir string, result *oci.PullResult) error {
 }
 
 // updateLockFile loads skills.lock.json, adds/updates the skill entry, and saves it.
-func updateLockFile(projectDir string, result *oci.PullResult) error {
+func updateLockFile(projectDir, skillsDir string, result *oci.PullResult) error {
 	l, err := skill.LoadLock(projectDir)
 	if err != nil {
 		return err
 	}
 
-	// Compute relative path from project dir to extracted skill
-	extractPath := filepath.Join(".agents", "skills", result.Name)
+	extractPath := filepath.Join(skillsDir, result.Name)
 
 	entry := skill.LockedSkill{
 		Name: result.Name,

@@ -1,4 +1,4 @@
-# skills-cli
+# skills-oci
 
 A CLI tool for packaging, pushing, and managing AI agent skills as OCI artifacts, following the [Agent Skills OCI Artifacts Specification](https://github.com/ThomasVitale/agents-skills-oci-artifacts-spec).
 
@@ -7,15 +7,15 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) for an inter
 ## Installation
 
 ```bash
-go install github.com/salaboy/skills-cli@latest
+go install github.com/salaboy/skills-oci@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/salaboy/skills-cli.git
-cd skills-cli
-go build -o skills .
+git clone https://github.com/salaboy/skills-oci.git
+cd skills-oci
+go build -o skills-oci .
 ```
 
 ## What is a Skill?
@@ -59,13 +59,13 @@ The `push` command packages a skill directory into an OCI artifact and pushes it
 ### Push to a registry
 
 ```bash
-skills push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0
+skills-oci push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0
 ```
 
 ### Push to a local registry (plain HTTP)
 
 ```bash
-skills push --ref localhost:5000/my-skill --path ./my-skill --tag 1.0.0 --plain-http
+skills-oci push --ref localhost:5000/my-skill --path ./my-skill --tag 1.0.0 --plain-http
 ```
 
 The `--path` flag defaults to the current directory if omitted. If `--tag` is not provided, the artifact is tagged as `latest`.
@@ -82,24 +82,30 @@ The artifact is compatible with any OCI-compliant registry (GHCR, ECR, GAR, ACR,
 
 ## Installing Skills
 
-The `add` command pulls a skill artifact from a registry, extracts it into `.agents/skills/`, and updates the project manifest files.
+The `add` command pulls a skill artifact from a registry, extracts it into `.agents/skills/` (or `.claude/skills/` with `--claude`), and updates the project manifest files.
 
 ### Install a skill
 
 ```bash
-skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0
+skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0
 ```
 
 ### Install from a local registry
 
 ```bash
-skills add --ref localhost:5000/my-skill:1.0.0 --plain-http
+skills-oci add --ref localhost:5000/my-skill:1.0.0 --plain-http
+```
+
+### Install to .claude/skills (for Claude Code projects)
+
+```bash
+skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --claude
 ```
 
 ### Install to a custom directory
 
 ```bash
-skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --output ./custom/skills
+skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --output ./custom/skills
 ```
 
 After installation, the skill is extracted and ready for use:
@@ -116,13 +122,27 @@ my-project/
   skills.lock.json
 ```
 
+Or with `--claude`:
+
+```
+my-project/
+  .claude/
+    skills/
+      manage-pull-requests/
+        SKILL.md
+        scripts/
+          create-pr.sh
+  skills.json
+  skills.lock.json
+```
+
 ## Managing Skills with skills.json
 
 The CLI automatically manages two manifest files in your project directory:
 
 ### skills.json
 
-A declarative manifest that declares which skills your project requires. It is created and updated automatically when you run `skills add` or `skills remove`.
+A declarative manifest that declares which skills your project requires. It is created and updated automatically when you run `skills-oci add` or `skills-oci remove`.
 
 ```json
 {
@@ -176,21 +196,29 @@ A lock file that records the exact OCI digests and metadata of installed skills,
 
 The lock file pins each skill to an immutable digest, so installations are reproducible regardless of whether mutable tags (like `latest` or `1.0`) have been updated.
 
+When using `--claude`, the `path` field reflects the `.claude/skills/` directory instead.
+
 ### Removing a skill
 
 ```bash
-skills remove --name manage-pull-requests
+skills-oci remove --name manage-pull-requests
 ```
 
-This removes the skill from `skills.json`, `skills.lock.json`, and deletes the extracted directory from `.agents/skills/`.
+If the skill was installed with `--claude`, pass the flag again:
+
+```bash
+skills-oci remove --name manage-pull-requests --claude
+```
+
+This removes the skill from `skills.json`, `skills.lock.json`, and deletes the extracted directory.
 
 ## Interactive TUI
 
 By default, the CLI runs with an interactive terminal UI that shows progress through each phase with spinners and styled output. To disable the TUI (for CI/CD pipelines or scripting), use the `--plain` flag:
 
 ```bash
-skills push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0 --plain
-skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --plain
+skills-oci push --ref ghcr.io/myorg/skills/my-skill --path ./my-skill --tag 1.0.0 --plain
+skills-oci add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --plain
 ```
 
 ## Global Flags
@@ -199,6 +227,7 @@ skills add --ref ghcr.io/myorg/skills/my-skill:1.0.0 --plain
 |------|-------------|
 | `--plain` | Disable interactive TUI, use plain text output |
 | `--plain-http` | Use HTTP instead of HTTPS for registry connections |
+| `--claude` | Use `.claude/skills` instead of `.agents/skills` as the skills directory |
 
 ## Authentication
 
