@@ -27,9 +27,10 @@ type SkillsManifest struct {
 
 // SkillDependency is a single entry in skills.json.
 type SkillDependency struct {
-	Name    string `json:"name"`
-	Source  string `json:"source"`
-	Version string `json:"version,omitempty"`
+	Name                string   `json:"name"`
+	Source              string   `json:"source"`
+	Version             string   `json:"version,omitempty"`
+	AdditionalBasePaths []string `json:"additionalBasePaths,omitempty"`
 }
 
 // SkillsLock represents skills.lock.json — the lock file for reproducibility.
@@ -41,10 +42,11 @@ type SkillsLock struct {
 
 // LockedSkill is a single entry in skills.lock.json.
 type LockedSkill struct {
-	Name        string      `json:"name"`
-	Path        string      `json:"path"`
-	Source      LockSource  `json:"source"`
-	InstalledAt string      `json:"installedAt"`
+	Name                    string     `json:"name"`
+	Path                    string     `json:"path"`
+	Source                  LockSource `json:"source"`
+	InstalledAt             string     `json:"installedAt"`
+	AdditionalInstalledPaths []string  `json:"additionalInstalledPaths,omitempty"`
 }
 
 // CollectionSkillRef represents a skill entry within a fetched collection.

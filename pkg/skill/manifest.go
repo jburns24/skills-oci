@@ -48,19 +48,40 @@ func SaveManifest(dir string, m *SkillsManifest) error {
 }
 
 // AddToManifest adds or updates a skill entry in the manifest.
-func AddToManifest(m *SkillsManifest, name, source, version string) {
+// additionalBasePaths may be nil or empty when the skill has no extra install targets.
+func AddToManifest(m *SkillsManifest, name, source, version string, additionalBasePaths []string) {
 	for i, s := range m.Skills {
 		if s.Name == name {
 			m.Skills[i].Source = source
 			m.Skills[i].Version = version
+			m.Skills[i].AdditionalBasePaths = normalizeStringSlice(additionalBasePaths)
 			return
 		}
 	}
 	m.Skills = append(m.Skills, SkillDependency{
-		Name:    name,
-		Source:   source,
-		Version: version,
+		Name:                name,
+		Source:              source,
+		Version:             version,
+		AdditionalBasePaths: normalizeStringSlice(additionalBasePaths),
 	})
+}
+
+// normalizeStringSlice returns nil for empty slices so omitempty works correctly.
+func normalizeStringSlice(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	return s
+}
+
+// GetLockedSkill returns the locked skill entry for the given name, or nil if not found.
+func GetLockedSkill(l *SkillsLock, name string) *LockedSkill {
+	for i := range l.Skills {
+		if l.Skills[i].Name == name {
+			return &l.Skills[i]
+		}
+	}
+	return nil
 }
 
 // LoadLock reads skills.lock.json from the given directory.

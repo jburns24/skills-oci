@@ -32,30 +32,34 @@ type pullErrMsg struct{ err error }
 
 // Model is the Bubble Tea model for the add/install workflow.
 type Model struct {
-	phase      phase
-	spinner    spinner.Model
-	ref        string
-	outputDir  string
-	projectDir string
-	skillsDir  string
-	plainHTTP  bool
-	result     *oci.PullResult
-	err        error
+	phase                phase
+	spinner              spinner.Model
+	ref                  string
+	outputDir            string
+	additionalOutputDirs []string
+	additionalBasePaths  []string
+	projectDir           string
+	skillsDir            string
+	plainHTTP            bool
+	result               *oci.PullResult
+	err                  error
 }
 
 // NewModel creates a new add TUI model.
-func NewModel(ref, outputDir, projectDir, skillsDir string, plainHTTP bool) Model {
+func NewModel(ref, outputDir string, additionalOutputDirs, additionalBasePaths []string, projectDir, skillsDir string, plainHTTP bool) Model {
 	if projectDir == "" {
 		projectDir = "."
 	}
 	return Model{
-		phase:      phaseInit,
-		spinner:    components.NewSpinner(),
-		ref:        ref,
-		outputDir:  outputDir,
-		projectDir: projectDir,
-		skillsDir:  skillsDir,
-		plainHTTP:  plainHTTP,
+		phase:                phaseInit,
+		spinner:              components.NewSpinner(),
+		ref:                  ref,
+		outputDir:            outputDir,
+		additionalOutputDirs: additionalOutputDirs,
+		additionalBasePaths:  additionalBasePaths,
+		projectDir:           projectDir,
+		skillsDir:            skillsDir,
+		plainHTTP:            plainHTTP,
 	}
 }
 
@@ -148,22 +152,23 @@ func (m Model) Err() error {
 func (m Model) startPull() tea.Cmd {
 	return func() tea.Msg {
 		result, err := oci.Pull(context.Background(), oci.PullOptions{
-			Reference: m.ref,
-			OutputDir: m.outputDir,
-			PlainHTTP: m.plainHTTP,
-			OnStatus:  func(phase string) {},
+			Reference:            m.ref,
+			OutputDir:            m.outputDir,
+			AdditionalOutputDirs: m.additionalOutputDirs,
+			PlainHTTP:            m.plainHTTP,
+			OnStatus:             func(phase string) {},
 		})
 		if err != nil {
 			return pullErrMsg{err: err}
 		}
 
 		// Update skills.json
-		if err := updateManifest(m.projectDir, m.skillsDir, result); err != nil {
+		if err := updateManifest(m.projectDir, m.skillsDir, m.additionalBasePaths, result); err != nil {
 			return pullErrMsg{err: fmt.Errorf("updating skills.json: %w", err)}
 		}
 
 		// Update skills.lock.json
-		if err := updateLockFile(m.projectDir, m.skillsDir, result); err != nil {
+		if err := updateLockFile(m.projectDir, m.skillsDir, m.additionalBasePaths, result); err != nil {
 			return pullErrMsg{err: fmt.Errorf("updating skills.lock.json: %w", err)}
 		}
 
@@ -171,22 +176,28 @@ func (m Model) startPull() tea.Cmd {
 	}
 }
 
-func updateManifest(projectDir, skillsDir string, result *oci.PullResult) error {
+func updateManifest(projectDir, skillsDir string, additionalBasePaths []string, result *oci.PullResult) error {
 	m, err := skill.LoadManifest(projectDir)
 	if err != nil {
 		return err
 	}
-	skill.AddToManifest(m, result.Name, result.Source(), result.Version)
+	skill.AddToManifest(m, result.Name, result.Source(), result.Version, additionalBasePaths)
 	return skill.SaveManifest(projectDir, m)
 }
 
-func updateLockFile(projectDir, skillsDir string, result *oci.PullResult) error {
+func updateLockFile(projectDir, skillsDir string, additionalBasePaths []string, result *oci.PullResult) error {
 	l, err := skill.LoadLock(projectDir)
 	if err != nil {
 		return err
 	}
 
 	extractPath := filepath.Join(skillsDir, result.Name)
+
+	var additionalInstalledPaths []string
+	for _, base := range additionalBasePaths {
+		additionalInstalledPaths = append(additionalInstalledPaths, filepath.Join(base, result.Name))
+	}
+
 	entry := skill.LockedSkill{
 		Name: result.Name,
 		Path: extractPath,
@@ -197,7 +208,8 @@ func updateLockFile(projectDir, skillsDir string, result *oci.PullResult) error 
 			Digest:     result.Digest,
 			Ref:        result.FullRef(),
 		},
-		InstalledAt: time.Now().UTC().Format(time.RFC3339),
+		InstalledAt:              time.Now().UTC().Format(time.RFC3339),
+		AdditionalInstalledPaths: additionalInstalledPaths,
 	}
 
 	skill.AddToLock(l, entry)

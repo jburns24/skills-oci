@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/skills-oci load --plain --claude",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

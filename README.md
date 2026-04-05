@@ -64,6 +64,8 @@ Instructions and documentation for the skill go here...
 
 The `push` command packages a skill directory into an OCI artifact and pushes it to a container registry. The CLI reads the `SKILL.md` frontmatter to build the artifact config and annotations automatically.
 
+See [`examples/package-and-push/`](examples/package-and-push/) for a complete walkthrough using the popular `pdf` skill from [skills.sh](https://skills.sh/hot).
+
 ### Push to a registry
 
 ```bash
@@ -219,6 +221,109 @@ skills-oci remove --name manage-pull-requests --claude
 ```
 
 This removes the skill from `skills.json`, `skills.lock.json`, and deletes the extracted directory.
+
+## Using with Claude Code (Hook Integration)
+
+`skills-oci` can be configured as a Claude Code `SessionStart` hook so that skills are automatically installed every time a Claude Code session starts. This means your project's skills are always present without any manual steps.
+
+### How it works
+
+1. **Declare skills** in `skills.json` at the root of your project.
+2. **Register the hook** using `skills-oci register --claude`. This writes a `SessionStart` hook into `.claude/settings.json` that runs `skills-oci load --plain --claude` on every session start.
+3. **Start Claude Code** — the hook fires, reads `skills.json`, and pulls any missing skills into `.claude/skills/`. Skills already present are skipped, so subsequent starts are fast.
+
+```
+Project start → Claude Code launches
+                      │
+                      ▼
+              SessionStart hook fires
+                      │
+                      ▼
+          skills-oci load --plain --claude
+                      │
+                 reads skills.json
+                      │
+            ┌─────────┴──────────┐
+            ▼                    ▼
+     skill missing?        already present?
+    pull from registry         skip
+            │
+     extract to .claude/skills/
+```
+
+### Setup
+
+**Step 1 — Install skills-oci**
+
+```bash
+brew install salaboy/tap/skills-oci
+```
+
+**Step 2 — Declare your skills**
+
+Create a `skills.json` in your project root (or add skills interactively via `skills-oci add --claude`):
+
+```json
+{
+  "skills": [
+    {
+      "name": "manage-pull-requests",
+      "source": "ghcr.io/salaboy/skills/manage-pull-requests",
+      "version": "1.0.0"
+    }
+  ]
+}
+```
+
+**Step 3 — Register the hook**
+
+```bash
+skills-oci register --claude
+```
+
+This creates or updates `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/bin/skills-oci load --plain --claude",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Step 4 — Commit both files**
+
+```bash
+git add skills.json skills.lock.json .claude/settings.json
+git commit -m "add skills-oci hook for Claude Code"
+```
+
+Any team member who clones the repo and opens Claude Code will automatically get the skills installed on their first session start.
+
+### Example
+
+See [`examples/claude-code-hooks/`](examples/claude-code-hooks/) for a minimal project showing the `skills.json` and the resulting `.claude/settings.json`.
+
+### Updating skills
+
+To add or update a skill, run `skills-oci add --claude --ref <ref>` (or edit `skills.json` directly) and commit the updated manifest. The hook will install the new skill on the next session start.
+
+To remove a skill:
+
+```bash
+skills-oci remove --name manage-pull-requests --claude
+```
 
 ## Interactive TUI
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -20,9 +21,10 @@ import (
 
 // PullOptions configures a pull operation.
 type PullOptions struct {
-	Reference string // Full OCI reference, e.g., "ghcr.io/org/skills/my-skill:1.0.0"
-	OutputDir string // Directory to extract skill into
-	PlainHTTP bool
+	Reference            string   // Full OCI reference, e.g., "ghcr.io/org/skills/my-skill:1.0.0"
+	OutputDir            string   // Primary directory to extract skill into
+	AdditionalOutputDirs []string // Extra directories to also extract the skill into
+	PlainHTTP            bool
 
 	OnStatus func(phase string)
 }
@@ -140,6 +142,32 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 
 	extractPath := filepath.Join(outputDir, skillConfig.Name)
 
+	// For each additional output directory, create a symlink (Unix/macOS) or
+	// copy the files (Windows) pointing to the primary extracted directory.
+	for _, additionalDir := range opts.AdditionalOutputDirs {
+		if err := os.MkdirAll(additionalDir, 0755); err != nil {
+			return nil, fmt.Errorf("creating directory %s: %w", additionalDir, err)
+		}
+		additionalSkillDir := filepath.Join(additionalDir, skillConfig.Name)
+
+		if runtime.GOOS == "windows" {
+			if err := copyDir(extractPath, additionalSkillDir); err != nil {
+				return nil, fmt.Errorf("copying skill to %s: %w", additionalSkillDir, err)
+			}
+		} else {
+			// Compute a relative symlink target so the project stays portable.
+			relTarget, err := filepath.Rel(additionalDir, extractPath)
+			if err != nil {
+				return nil, fmt.Errorf("computing relative path from %s to %s: %w", additionalDir, extractPath, err)
+			}
+			// Remove any stale symlink or directory before creating the new one.
+			_ = os.Remove(additionalSkillDir)
+			if err := os.Symlink(relTarget, additionalSkillDir); err != nil {
+				return nil, fmt.Errorf("creating symlink %s -> %s: %w", additionalSkillDir, relTarget, err)
+			}
+		}
+	}
+
 	return &PullResult{
 		Name:       skillConfig.Name,
 		Version:    skillConfig.Version,
@@ -187,6 +215,43 @@ func parseReference(ref string) (registry, repository, tag string) {
 	}
 
 	return registry, repository, tag
+}
+
+// copyDir recursively copies src to dst. Used on Windows where symlinks are
+// not always available without elevated privileges.
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, in)
+		return err
+	})
 }
 
 // extractTarGz extracts a tar.gz stream to the given output directory.

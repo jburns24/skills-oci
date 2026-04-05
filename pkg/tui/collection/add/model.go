@@ -197,7 +197,7 @@ func updateManifest(projectDir, skillsDir string, result *oci.PullResult) error 
 	if err != nil {
 		return err
 	}
-	skill.AddToManifest(m, result.Name, result.Source(), result.Version)
+	skill.AddToManifest(m, result.Name, result.Source(), result.Version, nil)
 	return skill.SaveManifest(projectDir, m)
 }
 

@@ -196,20 +196,32 @@ func LoadSkills(projectDir, skillsDir string, plainHTTP bool, onStatus func(stri
 			onStatus(fmt.Sprintf("Pulling %s", s.Name))
 		}
 
+		// Resolve additional output dirs from the skill's additionalBasePaths.
+		var additionalOutputDirs []string
+		for _, base := range s.AdditionalBasePaths {
+			additionalOutputDirs = append(additionalOutputDirs, filepath.Join(projectDir, base))
+		}
+
 		result, err := oci.Pull(context.Background(), oci.PullOptions{
-			Reference: ref,
-			OutputDir: outputDir,
-			PlainHTTP: plainHTTP,
-			OnStatus:  func(phase string) {},
+			Reference:            ref,
+			OutputDir:            outputDir,
+			AdditionalOutputDirs: additionalOutputDirs,
+			PlainHTTP:            plainHTTP,
+			OnStatus:             func(phase string) {},
 		})
 		if err != nil {
 			return installed, skipped, fmt.Errorf("pulling %s: %w", s.Name, err)
 		}
 
-		// Update lock file with pulled skill metadata
+		// Update lock file with pulled skill metadata.
 		l, err := skill.LoadLock(projectDir)
 		if err != nil {
 			return installed, skipped, fmt.Errorf("loading skills.lock.json: %w", err)
+		}
+
+		var additionalInstalledPaths []string
+		for _, base := range s.AdditionalBasePaths {
+			additionalInstalledPaths = append(additionalInstalledPaths, filepath.Join(base, result.Name))
 		}
 
 		entry := skill.LockedSkill{
@@ -222,7 +234,8 @@ func LoadSkills(projectDir, skillsDir string, plainHTTP bool, onStatus func(stri
 				Digest:     result.Digest,
 				Ref:        result.FullRef(),
 			},
-			InstalledAt: time.Now().UTC().Format(time.RFC3339),
+			InstalledAt:              time.Now().UTC().Format(time.RFC3339),
+			AdditionalInstalledPaths: additionalInstalledPaths,
 		}
 		skill.AddToLock(l, entry)
 		if err := skill.SaveLock(projectDir, l); err != nil {
