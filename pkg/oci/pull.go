@@ -177,9 +177,17 @@ func Pull(ctx context.Context, opts PullOptions) (*PullResult, error) {
 		}
 	}
 
+	// Prefer the OCI tag as the version — it is what the user requested and
+	// what was actually published. Fall back to the embedded config version
+	// only when no tag is available (e.g., digest-only pulls).
+	version := tag
+	if version == "" || version == "latest" {
+		version = skillConfig.Version
+	}
+
 	return &PullResult{
 		Name:       skillConfig.Name,
-		Version:    skillConfig.Version,
+		Version:    version,
 		Digest:     desc.Digest.String(),
 		ExtractTo:  extractPath,
 		Registry:   registry,

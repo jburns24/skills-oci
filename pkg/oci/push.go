@@ -36,6 +36,18 @@ type PushResult struct {
 
 // Push packages a skill directory and pushes it as an OCI artifact to a remote registry.
 func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
+	// Resolve tag early so it can be used for version override below.
+	// Prefer explicit opts.Tag, then tag embedded in opts.Reference, then "latest".
+	reg, rep, parsedTag := parseReference(opts.Reference)
+	repoRef := reg + "/" + rep
+	tag := opts.Tag
+	if tag == "" {
+		tag = parsedTag
+	}
+	if tag == "" {
+		tag = "latest"
+	}
+
 	if opts.OnStatus != nil {
 		opts.OnStatus("Validating skill directory")
 	}
@@ -58,9 +70,10 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 		return nil, err
 	}
 
-	// Override version from tag if provided
-	if opts.Tag != "" {
-		sd.Config.Version = opts.Tag
+	// Override version with the resolved tag so the config embedded in the
+	// artifact always matches what was actually published.
+	if tag != "latest" {
+		sd.Config.Version = tag
 	}
 
 	// 3. Create deterministic archive
@@ -135,20 +148,6 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 		return nil, fmt.Errorf("packing manifest: %w", err)
 	}
 
-	// Resolve tag: prefer explicit opts.Tag, then fall back to any tag
-	// embedded in opts.Reference (e.g. "docker.io/org/skill:1.0.0"), then
-	// default to "latest".
-	tag := opts.Tag
-	repoRef := opts.Reference
-	if tag == "" {
-		reg, rep, parsedTag := parseReference(opts.Reference)
-		tag = parsedTag
-		repoRef = reg + "/" + rep
-	}
-	if tag == "" {
-		tag = "latest"
-	}
-
 	// Tag in local store
 	if err := store.Tag(ctx, manifestDesc, tag); err != nil {
 		return nil, fmt.Errorf("tagging: %w", err)
@@ -171,7 +170,7 @@ func Push(ctx context.Context, opts PushOptions) (*PushResult, error) {
 
 	return &PushResult{
 		Digest:    desc.Digest.String(),
-		Reference: opts.Reference,
+		Reference: repoRef,
 		Tag:       tag,
 		Size:      desc.Size,
 	}, nil

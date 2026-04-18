@@ -66,7 +66,12 @@ func PushCollection(ctx context.Context, opts PushCollectionOptions) (*PushColle
 		opts.OnStatus("Building collection index")
 	}
 
+	reg, rep, parsedTag := parseReference(opts.Reference)
+	repoRef := reg + "/" + rep
 	tag := opts.Tag
+	if tag == "" {
+		tag = parsedTag
+	}
 	if tag == "" {
 		tag = "latest"
 	}
@@ -102,7 +107,7 @@ func PushCollection(ctx context.Context, opts PushCollectionOptions) (*PushColle
 		opts.OnStatus("Pushing collection to registry")
 	}
 
-	repo, err := remote.NewRepository(opts.Reference)
+	repo, err := remote.NewRepository(repoRef)
 	if err != nil {
 		return nil, fmt.Errorf("creating remote repository: %w", err)
 	}
@@ -119,7 +124,7 @@ func PushCollection(ctx context.Context, opts PushCollectionOptions) (*PushColle
 
 	return &PushCollectionResult{
 		Digest:    indexDesc.Digest.String(),
-		Reference: opts.Reference,
+		Reference: repoRef,
 		Tag:       tag,
 		Size:      indexDesc.Size,
 		Skills:    len(manifests),
