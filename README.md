@@ -26,29 +26,6 @@ cd skills-oci
 go build -o skills-oci .
 ```
 
-### OCI image
-
-A multi-arch (linux/amd64, linux/arm64) image is published to GHCR on every release:
-
-```bash
-docker run --rm ghcr.io/salaboy/skills-oci:latest --help
-```
-
-Available tags:
-
-| Tag | Description |
-|-----|-------------|
-| `latest` | Most recent `v*` release |
-| `vX.Y.Z` | Specific release (e.g. `v1.0.0`) |
-| `latest-main` | Most recent build from `main` |
-| `main-<sha>` | Specific `main` commit (first 7 chars of SHA) |
-
-Images are built with [`ko`](https://ko.build) on top of `cgr.dev/chainguard/static:latest` and ship with a GitHub-native build provenance attestation. Verify an image before pulling:
-
-```bash
-gh attestation verify oci://ghcr.io/salaboy/skills-oci:v1.0.0 --owner salaboy
-```
-
 ## What is a Skill?
 
 A skill is a directory containing a `SKILL.md` file with YAML frontmatter that describes what the skill does, along with optional supporting files like scripts and references. Here is an example skill directory:
